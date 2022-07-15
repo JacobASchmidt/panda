@@ -2,13 +2,17 @@ module lisp
 
 import "big"
 
+type Lambda struct 
+    Unbound [string]
+    Body    'AST
+
 type Value union
-    Name   string
-    String string 
-    Int    int 
-    Bool   bool 
-    None   ()
-    Lambda 
+    Identifier string
+    String     string 
+    Int        int 
+    Bool       bool 
+    None       ()
+    Lambda     Lambda 
 
 type AST union
     List [AST]
@@ -94,6 +98,40 @@ def Lex(in |Token|) [AST]
             return |AST.Value(value), ...Lex(rest)|
         case ||
             return ||
+
+
+
+def (l Lambda) BetaReduce(args &[Value]) AST
+    dict = zip(stream(l.Unbound), map(stream(args), (el) => copy(el)))
+        then dicts.Collect()
+
+    def impl(ast AST, bound &{string: Value}) AST
+        if bound == {}
+            return ast 
+        match ast
+            case List(vals)
+                return vals
+                    then stream()
+                    then map((el) => impl(el, bound))
+                    then lists.Collect()
+                    then AST.List()
+            case Atom(value)
+                match value 
+                    case None 
+                        return Value.None()
+                    case Identifier(el)
+                        match bound[el]
+                            case some(val) 
+                                return val
+                            case none 
+                                return el
+                    case Lambda({unbound, body})
+                        bound = stream(unbound)
+                            then reduce(copy(bound), (bound, el) => delete(bound, el))
+                        body = impl(body, bound)
+                        return Value.Lambda({unbound, body})
+    return impl(l.Body, dict)
+
 
 def Eval(ast AST) Value 
     def add(l &[AST]) Value 
