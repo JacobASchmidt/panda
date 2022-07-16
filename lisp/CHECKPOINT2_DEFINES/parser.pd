@@ -91,7 +91,7 @@ def expect(in |Token|, token Token) |Token|
         case ||
             panic("unexpected eof")
 
-def LexExpr(in |Token|) (Expression, |Token|)?
+def LexExpr(in |Token|) maybe[(Expression, |Token|)]
     
     def lambdaArgs(in |Token|) ([string], |Token|)
         def impl(in |Token|, out [string]) ([string], |Token|)
@@ -159,13 +159,18 @@ def Lex(in |Token|) |(string, Expression)|
                 return (id, rest)
             case el:
                 panic("expected identifier, got {}", el)
-
+    
     match in
         case |Token.OpenParen(), ...rest|
             rest = expect(rest, Token.Define())
             (name, rest) = lexIdentifier(rest)
             (body, rest) = LexExpr(rest)
-            return |(name, body), ...rest|
+            rest = expect(rest, Token.CloseParen())
+            return |(name, body), ...Lex(rest)|
+        case ||
+            return ||
+        case tok
+            panic("unexpected token, expected OpenParen, got {}", tok)
 
 def Eval(expr Expression) Value 
     match expr 
@@ -188,22 +193,25 @@ def Exec(program |(string, Expression|) {string: Value}
                 case Expression.Value.Identifier(id)
                     if id not in lambdaBounds
                         return (lambdaBounds, {...globals, id})
+                    else
+                        return (lambdaBounds, globals)
                 case Expression.List(l):
                     return stream(l)
-                        then reduce((lambdaBounds, globals), (el) => impl(el, lambdaBounds, globals))
+                        then reduce((lambdaBounds, globals), ((lambdaBounds, globals), el) => impl(el, lambdaBounds, globals))
                 case Expression.Value.Lambda({bounds, body})
                     toAdd = sets.Difference(bounds, stream(lambdaBounds))
                         then lists.Collect()
                     
                     lambdaBounds =  sets.Union(lambdaBounds, stream(toAdd))
 
-                    (lambdaBounds, globals) = impl(body)
+                    (lambdaBounds, globals) = impl(body, lambdaBounds, globals)
 
                     lambdaBounds = sets.Difference(lambdaBounds, stream(toAdd))
                     return (lambdaBounds, globals)
                 case _
                     return (lambdaBounds, globals)
-        return impl(expr, {}, {})
+        (bounds, globals) = impl(expr, {}, {})
+        return globals
 
     return program
         then map(((name, expr)) => (name, expr, undefined(expr)))
