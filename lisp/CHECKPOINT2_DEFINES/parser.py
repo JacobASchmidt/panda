@@ -272,6 +272,7 @@ s = """
 (def first  (lambda (a b) a))
 (def second  (lambda (a b) b))
 (def a (first (pair none (pair none none))))
+(def b (lambda (a) pair))
 """
 
 # print([Eval(el) for el in (Lex(Tokenize(s)))])
