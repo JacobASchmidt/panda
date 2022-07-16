@@ -30,33 +30,35 @@ Value = NoneT | Identifier | Lambda
 AST = List | Value
 
 
-
-def betaReduce(l: Lambda, args: List[Value]) -> AST:
-    d = {var: value for var, value in zip(l.Unbound, args)}
-    
-    def impl(ast: AST, bound: Dict[str, Value]) -> AST:
-        if bound == {}:
+def Substitute(ast: AST, bound: Dict[str, Value]) -> AST:
+    if bound == {}:
             return ast 
-        match ast:
-            case vals if isinstance(vals, List):
-                return [impl(el, bound) for el in vals]
-            case value if isinstance(value, Value):
-                match value:
-                    case NoneT(_):
-                        return NoneV 
-                    case Identifier(el):
-                        if el in bound:
-                            return bound[el]
-                        else:
-                            return el 
-                    case Lambda(Unbound=unbound, Body=body):
-                        bound = {key: value for key, value in bound.items() if key not in unbound}
-                        body = impl(body, bound)
-                        return Lambda(unbound, body)
-    return impl(l.Body, d)
+    match ast:
+        case vals if isinstance(vals, List):
+            return [Substitute(el, bound) for el in vals]
+        case value if isinstance(value, Value):
+            match value:
+                case NoneT(_):
+                    return NoneV 
+                case Identifier(el):
+                    if el in bound:
+                        return bound[el]
+                    else:
+                        return el 
+                case Lambda(Unbound=unbound, Body=body):
+                    bound = {key: value for key, value in bound.items() if key not in unbound}
+                    body = Substitute(body, bound)
+                    return Lambda(unbound, body)
 
 
-Token = OpenParen | CloseParen | Value
+def betaReduce(l: Lambda, args: Iterable[Value]) -> AST:
+    d = {var: value for var, value in zip(l.Unbound, args)}
+    return Substitute(l.Body, d)
+
+class LambdaToken:
+    pass
+
+Token = OpenParen | CloseParen | Value | Lambda
 
 class Done():
     pass
@@ -78,6 +80,8 @@ def Tokenize(inp: Iterable[str]) -> Iterable[Token]:
         match word:
             case "none":
                 return NoneV
+            case "lambda":
+                return LambdaToken()
             case _:
                 return Identifier(word)
     
@@ -107,7 +111,49 @@ def Tokenize(inp: Iterable[str]) -> Iterable[Token]:
             
 
 def Lex(inp: typing.Iterable[Token]) -> List[AST]:
-    def LexList(inp: Iterable[Token]) -> Tuple[AST, Token]:
+    def expect(inp: Iterable[Token], token: Token) -> Iterable[Token]:
+        first, rest = matchOn(inp)
+        match first:
+            case el if el == first:
+                return rest
+            case Done():
+                raise ValueError(f"unexpexted eof")
+            case el:
+                raise ValueError(f"unexpected token {el}")
+            
+    def lambdaArgs(inp: Iterable[Token]) -> Tuple[List[str], Iterable[Token]]:
+        def impl(inp: Iterable[Token], out: List[str]) -> Tuple[List[str], Iterable[Token]]:
+            first, rest = matchOn(inp)
+            match first:
+                case CloseParen():
+                    return (out, rest)
+                case id if isinstance(id, Identifier):
+                    if id in out:
+                        raise ValueError("multiple arguments of same name in lambda")
+                    out.append(id)
+                    return impl(rest, out)
+                case Done():
+                    raise ValueError(f"unexpected eof")
+                case el:
+                    raise ValueError(f"expected identifier or closeparen, got {first}")
+        return impl(inp, [])
+    def lambdaBody(inp: Iterable[Token]) -> Tuple[AST, Iterable[Token]]:
+        first, rest = matchOn(inp)
+        match first:
+            case OpenParen():
+                return LexList(inp)
+            case CloseParen():
+                raise ValueError("unexpected close paren in lambda body")
+            case val if isinstance(val, Value):
+                return val, rest
+            case LambdaToken():
+                raise ValueError("found 'lambda' in middle of list")
+            case Done():
+                raise ValueError("unexpecetd eof")
+            case rest:
+                raise f"FAIL {rest} in lambdaBody"
+    def LexList(inp: Iterable[Token]) -> Tuple[AST, Iterable[Token]]:
+        
         def impl(inp: Iterable[Token], ast: List[AST]) -> Tuple[AST, Iterable[Token]]:
             first, rest = matchOn(inp)
             match first:
@@ -117,6 +163,14 @@ def Lex(inp: typing.Iterable[Token]) -> List[AST]:
                     return impl(rest, ast)
                 case CloseParen():
                     return ast, rest
+                case LambdaToken():
+                    if len(ast) != 0:
+                        raise ValueError("lambda found in middle of arguments")
+                    rest = expect(rest, OpenParen())
+                    args, rest = lambdaArgs(rest)
+                    body, rest = lambdaBody(rest)
+                    rest = expect(rest, CloseParen())
+                    return Lambda(Unbound=args, Body=body), rest
                 case val if isinstance(val, Value):
                     ast.append(val)
                     return impl(rest, ast)
@@ -138,29 +192,10 @@ def Lex(inp: typing.Iterable[Token]) -> List[AST]:
     yield from Lex(rest)
 
 def Eval(ast: AST) -> Value:
-    def makeLambda(l: List[AST]) -> Lambda:
-        if len(l) != 3:
-            raise ValueError(f"expected three parts to lambda statement, got {len(l)=}")
-        if not isinstance(l[1], List):
-            raise ValueError(f"expected list of names, got {l[1]=}")
-    
-        def getId(el): 
-            match el:
-                case Identifier(id):
-                    return id
-                case _:
-                    raise ValueError("Expected all to be ids, got {}", el)
-        unbound = [getId(el) for el in l[1]]
-        body = l[2]
-        return Lambda(Unbound=unbound, Body=body)
-    print(ast)
     match ast:
         case v if isinstance(v, Value):
             return v 
         case l if isinstance(l, List):
-            if isinstance(l[0], Identifier) and l[0] == "lambda":
-                return makeLambda(l)
-            
             l = [Eval(el) for el in l]
             match l[0]:
                 case Identifier(id):

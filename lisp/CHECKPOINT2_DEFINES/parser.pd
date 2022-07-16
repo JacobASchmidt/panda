@@ -1,5 +1,12 @@
 module lisp 
 
+import (
+    "lists"
+    "inplace"
+    "dicts"
+    "strings"
+)
+
 type Lambda struct 
     Unbound [string]
     Body    'AST
@@ -13,36 +20,33 @@ type AST union
     List [AST]
     Atom Value
 
-def (l Lambda) BetaReduce(args &[Value]) AST
-    dict = zip(stream(l.Unbound), map(stream(args), (el) => copy(el)))
-        then dicts.Collect()
+def Substitute(ast AST, bound &{string: Value}) AST 
+    if bound == {}
+        return ast 
+    match ast 
+        case AST.List(vals)
+            return vals
+                then inplace.Map((el) => Substitute(el, bound))
+        case AST.Atom(val)
+            match val 
+                case Value.None()
+                    return AST.Atom.None()
+                case Value.Identifier(id)
+                    match bound[id]
+                        case some(val)
+                            return AST.Atom(val)
+                        case none()
+                            return id
+                case Lambda({unbound, body})
+                    bound = stream(unbound)
+                        then reduce(copy(bound), (bound, unbound) => delete(bound, unbound))
+                    body = Substitute(body, bound)
+                    return AST.Atom.Lambda({body, bound})
 
-    def impl(ast AST, bound &{string: Value}) AST
-        if bound == {}
-            return ast 
-        match ast
-            case List(vals)
-                return vals
-                    then stream()
-                    then map((el) => impl(el, bound))
-                    then lists.Collect()
-                    then AST.List()
-            case Atom(value)
-                match value 
-                    case None 
-                        return Value.None()
-                    case Identifier(el)
-                        match bound[el]
-                            case some(val) 
-                                return val
-                            case none 
-                                return el
-                    case Lambda({unbound, body})
-                        bound = stream(unbound)
-                            then reduce(copy(bound), (bound, el) => delete(bound, el))
-                        body = impl(body, bound)
-                        return Value.Lambda({unbound, body})
-    return impl(l.Body, dict)
+def (l Lambda) BetaReduce(args |Value|) AST
+    dict = zip(stream(l.Unbound), args)
+        then dicts.Collect()
+   return Substitute(l.Body, dict)
 
 type Token union 
     OpenParen     ()
@@ -76,7 +80,40 @@ def Tokenize(in |rune|) |Token|
         default
             panic("bad char")
 
-def Lex(in |Token|) [AST]
+
+def Lex(in |Token|) |AST|
+    def expect(in |Token|, token Token) |Token|
+        match in 
+            case |t if t == token, ...rest|
+                return rest 
+            case |t, ...rest|
+                panic("unexpected token {}", t)
+            case ||
+                panic("unexpected eof")
+    def lambdaArgs(in |Token|) ([string], |Token|)
+        def impl(in |Token|, out [string]) (|Token|, [string])
+            match in 
+                case |Token.CloseParen(), ...rest|
+                    return (rest, out)
+                case |Token.Value.Identifier(id), ...rest|
+                    if slices.Contains(out, id)
+                        panic("multiple arguments of the same name {}", out)
+                    return impl(rest, [...out, id])
+                case |el, ...rest|
+                    panic("expected identifier, got {}", el)
+                case ||
+                    panic("unexpected eof")
+    def lambdaBody(in |Token|) (AST, |Token|)
+        match in
+            case |Token.OpenParen(), ...rest|
+                (first, rest) = list(in)
+                return (first, rest)
+            case |Token.CloseParen(), ...rest|
+                panic("invalid syntax, closed paren without matching open paren")
+            case |Token.Value(value), ...rest|
+                return (AST.Value(value), rest)
+            case ||
+                panic("unexpected eof")
     def list(in |Token|) (AST, token)
         def impl(in |Token|, ast [AST]) (AST, |Token|)   
             match in
@@ -85,6 +122,13 @@ def Lex(in |Token|) [AST]
                     return impl(rest, [...ast, l])
                 case |Token.CloseParen(), ...rest|
                     return (AST.List(ast), rest)
+                case |Token.Lambda(), ...rest|
+                    if len(ast) != 0
+                        panic("lambda found in middle of arguments")
+                    (args, rest) = lambdaArgs(rest)
+                    (body, rest) = lambdaBody(rest)
+                    rest = expect(rest, Token.CloseParen())
+                    return (AST.Atom.Lambda({args, body}), rest)
                 case |Token.Value(val), ...rest|
                     return impl(rest, [...ast, AST.Value(val)])
         return impl(in, [])
@@ -99,48 +143,16 @@ def Lex(in |Token|) [AST]
         case ||
             return ||
 
-def Eval(ast AST, defines {string: AST}) Value 
-    def makeLambda(list [AST]) Lambda
-        if len(l) != 3 
-            panic("expected three parts for lambda statement, got {} for {}", len(l), l)
-        if l[1] is AST.List(ids)
-            unbound = map(ids, (el) => 
-                match el 
-                    case Identifier(id)
-                        return id
-                    case _
-                        panic("Expected all to be ids, but got {}", el) 
-            )
-            body = l[2]
-            return Lambda{unbound, body}
-        else
-            panic("Expected List of ids!")
+def Eval(ast AST) Value 
     match ast 
         case AST.Value(v):
             return v 
         case AST.List(l):
-            match l[0]
-                case Define()
-                    if len(l) < 3 
-                        panic("bad length!")
-                    if l[1] is Identifier(id)
-                        #TODO: FIGURE OUT HOW THIS WILL WORK
-                        
-                        name = id 
-                        return slices.Sub(l, 2, len(l))
-                            then reduce(defines, (defines, el) => Eval())
-                           Eval(l[2:], defines)
-            l = stream(l)
-                then map((el) => Eval(el))
-                then lists.Collect()
-                then AST.List()
+            l = inplace.Map(l, (el) => Eval(el))
             match l[0]
                 case Identifier(id)
-                    if id == "lambda"
-                        return makeLambda(l)
-                    else
-                        panic("Unkown identifier {}", id)
+                    panic("Unbound identifier {}", id)
                 case Lambda(lambda)
-                    return Eval(lambda.BetaReduce(l[1:])) #dont think slicing will actually be a feature ALTHOUGH THIS COULD TOTALY SOLVE THE PROBLEM, but I don't think so      
+                    return Eval(lambda.BetaReduce(slices.StreamFrom(1)))
                 case _
                     panic("expected lambda function call, got {}", l[0])
