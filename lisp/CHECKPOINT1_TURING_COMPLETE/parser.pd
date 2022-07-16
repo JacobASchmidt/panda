@@ -133,6 +133,8 @@ def Lex(in |Token|) |AST|
                     return (AST.Atom.Lambda({args, body}), rest)
                 case |Token.Value(val), ...rest|
                     return impl(rest, [...ast, AST.Value(val)])
+                case ||
+                    panic("unexpected eof")
         return impl(in, [])
     match in
         case |Token.OpenParen(), ...rest|

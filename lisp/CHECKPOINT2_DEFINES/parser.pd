@@ -9,49 +9,51 @@ import (
 
 type Lambda struct 
     Unbound [string]
-    Body    'AST
+    Body    'Expression
 
 type Value union 
     None       ()
     Identifier string
     Lambda     Lambda
 
-type AST union
-    List [AST]
-    Atom Value
+type Expression union
+    List [Expression]
+    Value Value
 
-def Substitute(ast AST, bound &{string: Value}) AST 
+def Substitute(expr Expression, bound &{string: Value}) Expression 
     if bound == {}
-        return ast 
-    match ast 
-        case AST.List(vals)
+        return expr 
+    match expr 
+        case Expression.List(vals)
             return vals
                 then inplace.Map((el) => Substitute(el, bound))
-        case AST.Atom(val)
+        case Expression.Value(val)
             match val 
                 case Value.None()
-                    return AST.Atom.None()
+                    return Expression.Value.None()
                 case Value.Identifier(id)
                     match bound[id]
                         case some(val)
-                            return AST.Atom(val)
+                            return Expression.Value(val)
                         case none()
                             return id
                 case Lambda({unbound, body})
                     bound = stream(unbound)
                         then reduce(copy(bound), (bound, unbound) => delete(bound, unbound))
                     body = Substitute(body, bound)
-                    return AST.Atom.Lambda({body, bound})
+                    return Expression.Value.Lambda({body, bound})
 
-def (l Lambda) BetaReduce(args |Value|) AST
+def (l Lambda) BetaReduce(args |Value|) Expression
     dict = zip(stream(l.Unbound), args)
         then dicts.Collect()
-   return Substitute(l.Body, dict)
+    if len(dict) != len(l.Unbound)
+        panic("incorrect amount of args passed to function, expected {}, but got {}", len(l.Unbound), len(dict))
+    return Substitute(l.Body, dict)
 
 type Token union 
     OpenParen     ()
     CloseParen    ()
-    Define        () 
+    Define        ()
     Lambda        ()
     Value         Value
 
@@ -60,10 +62,10 @@ def Tokenize(in |rune|) |Token|
         match word 
             case "none"
                 return Token.Value.None()
-            case "define"
-                return Token.Define()
             case "lambda"
                 return Token.Lambda()
+            case "def"
+                return Token.Define()
             case _
                 return Token.Value.Identifier(word)
     
@@ -80,21 +82,22 @@ def Tokenize(in |rune|) |Token|
         default
             panic("bad char")
 
+def expect(in |Token|, token Token) |Token|
+    match in 
+        case |t if t == token, ...rest|
+            return rest 
+        case |t, ...rest|
+            panic("unexpected token {}", t)
+        case ||
+            panic("unexpected eof")
 
-def Lex(in |Token|) |AST|
-    def expect(in |Token|, token Token) |Token|
-        match in 
-            case |t if t == token, ...rest|
-                return rest 
-            case |t, ...rest|
-                panic("unexpected token {}", t)
-            case ||
-                panic("unexpected eof")
+def LexExpr(in |Token|) (Expression, |Token|)?
+    
     def lambdaArgs(in |Token|) ([string], |Token|)
-        def impl(in |Token|, out [string]) (|Token|, [string])
+        def impl(in |Token|, out [string]) ([string], |Token|)
             match in 
                 case |Token.CloseParen(), ...rest|
-                    return (rest, out)
+                    return (out, rest)
                 case |Token.Value.Identifier(id), ...rest|
                     if slices.Contains(out, id)
                         panic("multiple arguments of the same name {}", out)
@@ -103,51 +106,72 @@ def Lex(in |Token|) |AST|
                     panic("expected identifier, got {}", el)
                 case ||
                     panic("unexpected eof")
-    def lambdaBody(in |Token|) (AST, |Token|)
+        return impl(in, [])
+    def lambdaBody(in |Token|) (Expression, |Token|)
         match in
             case |Token.OpenParen(), ...rest|
-                (first, rest) = list(in)
-                return (first, rest)
+                return list(in)
             case |Token.CloseParen(), ...rest|
                 panic("invalid syntax, closed paren without matching open paren")
             case |Token.Value(value), ...rest|
-                return (AST.Value(value), rest)
+                return (Expression.Value(value), rest)
+            case |Token.Lambda(), ...rest|
+                panic("found 'lambda' in middle of list")
             case ||
                 panic("unexpected eof")
-    def list(in |Token|) (AST, token)
-        def impl(in |Token|, ast [AST]) (AST, |Token|)   
+    def list(in |Token|) (Expression, token)
+        def impl(in |Token|, expr [Expression]) (Expression, |Token|)   
             match in
                 case |Token.OpenParen(), ...rest|
                     (l, rest) = list(rest)
-                    return impl(rest, [...ast, l])
+                    return impl(rest, [...expr, l])
                 case |Token.CloseParen(), ...rest|
-                    return (AST.List(ast), rest)
+                    return (Expression.List(expr), rest)
                 case |Token.Lambda(), ...rest|
-                    if len(ast) != 0
+                    if len(expr) != 0
                         panic("lambda found in middle of arguments")
+                    rest = expect(rest, Token.OpenParen())
                     (args, rest) = lambdaArgs(rest)
                     (body, rest) = lambdaBody(rest)
                     rest = expect(rest, Token.CloseParen())
-                    return (AST.Atom.Lambda({args, body}), rest)
+                    return (Expression.Value.Lambda({args, body}), rest)
                 case |Token.Value(val), ...rest|
-                    return impl(rest, [...ast, AST.Value(val)])
+                    return impl(rest, [...expr, Expression.Value(val)])
+                case ||
+                    panic("unexpected eof")
         return impl(in, [])
     match in
         case |Token.OpenParen(), ...rest|
-            (first, rest) = list(in)
-            return |first, ...Lex(rest)|
+            return some(list(in))
         case |Token.CloseParen(), ...rest|
             panic("invalid syntax, closed paren without matching open paren")
         case |Token.Value(value), ...rest|
-            return |AST.Value(value), ...Lex(rest)|
+            return some((Expression.Value(value), rest))
+        case |Token.Lambda(), ...rest|
+            panic("invalid syntax, lambda not in first position in list")
         case ||
-            return ||
+            return none()
 
-def Eval(ast AST) Value 
-    match ast 
-        case AST.Value(v):
+def Lex(in |Token|) |(string, Expression)|
+    def lexIdentifier(in |Token|) (string, |Token|)
+        match in 
+            case |Token.Value.Identifier(id), ...rest|
+                return (id, rest)
+            case el:
+                panic("expected identifier, got {}", el)
+
+    match in
+        case |Token.OpenParen(), ...rest|
+            rest = expect(rest, Token.Define())
+            (name, rest) = lexIdentifier(rest)
+            (body, rest) = LexExpr(rest)
+            return |(name, body), ...rest|
+
+def Eval(expr Expression) Value 
+    match expr 
+        case Expression.Value(v):
             return v 
-        case AST.List(l):
+        case Expression.List(l):
             l = inplace.Map(l, (el) => Eval(el))
             match l[0]
                 case Identifier(id)
@@ -156,3 +180,30 @@ def Eval(ast AST) Value
                     return Eval(lambda.BetaReduce(slices.StreamFrom(1)))
                 case _
                     panic("expected lambda function call, got {}", l[0])
+
+def Exec(program |(string, Expression|) {string: Value}
+    def undefined(expr &Expression) {string}
+        def impl(expr &Expression, lambdaBounds {string}, globals {string}) (lambdaBounds {string}, globals {string})
+            match expr 
+                case Expression.Value.Identifier(id)
+                    if id not in lambdaBounds
+                        return (lambdaBounds, {...globals, id})
+                case Expression.List(l):
+                    return stream(l)
+                        then reduce((lambdaBounds, globals), (el) => impl(el, lambdaBounds, globals))
+                case Expression.Value.Lambda({bounds, body})
+                    toAdd = sets.Difference(bounds, stream(lambdaBounds))
+                        then lists.Collect()
+                    
+                    lambdaBounds =  sets.Union(lambdaBounds, stream(toAdd))
+
+                    (lambdaBounds, globals) = impl(body)
+
+                    lambdaBounds = sets.Difference(lambdaBounds, stream(toAdd))
+                    return (lambdaBounds, globals)
+                case _
+                    return (lambdaBounds, globals)
+        return impl(expr, {}, {})
+
+    return program
+        then map(((name, expr)) => (name, expr, undefined(expr)))

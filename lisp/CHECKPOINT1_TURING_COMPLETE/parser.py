@@ -1,11 +1,7 @@
-from enum import Enum
-from functools import reduce
 from string import whitespace
 from typing import Dict, Iterable, List, Tuple
 import typing
 from dataclasses import dataclass
-
-
 
 class Identifier(str):
     pass
@@ -174,6 +170,10 @@ def Lex(inp: typing.Iterable[Token]) -> List[AST]:
                 case val if isinstance(val, Value):
                     ast.append(val)
                     return impl(rest, ast)
+                case Done():
+                    raise ValueError("unexpected EOF")
+                case el:
+                    raise ValueError(f"got {el}")
         return impl(inp, [])
     first, rest = matchOn(inp)
     match first:
@@ -206,6 +206,18 @@ def Eval(ast: AST) -> Value:
                     raise ValueError("expected lambda function call, got {}", l[0])
 
 
-s = "((lambda (a b c) a) ((lambda (b c) b) none (lambda (a b) b)) (lambda (c d) d))"
+s = """
+((lambda (a b c) a) 
+    ((lambda (b c) b) 
+        none 
+        (lambda (a b) b)) 
+    (lambda (c d) d) 
+    (lambda () (lambda (a) a)))"
+"""
+# s = """
+# (def cons (fn (a b) (fn (f) (f a b)))
+# (def car  (fn (a b) a))
+# (def cdr  (fn (a b) b))
+# """
 
 print([Eval(el) for el in (Lex(Tokenize(s)))])
