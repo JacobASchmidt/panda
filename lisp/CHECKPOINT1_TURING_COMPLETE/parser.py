@@ -25,7 +25,6 @@ class Lambda:
     Unbound: List[str]
     Body: typing.Any
 
-
 Value = NoneT | Identifier | Lambda
 AST = List | Value
 
@@ -53,6 +52,7 @@ def Substitute(ast: AST, bound: Dict[str, Value]) -> AST:
 
 def betaReduce(l: Lambda, args: Iterable[Value]) -> AST:
     d = {var: value for var, value in zip(l.Unbound, args)}
+    assert len(l.Unbound) == len(d), f"unexpected number of args, expected {len(l.Unbound)} got {len(d)} in {l} with args={[*args]}"
     return Substitute(l.Body, d)
 
 class LambdaToken:
@@ -135,7 +135,7 @@ def Lex(inp: typing.Iterable[Token]) -> List[AST]:
                 case Done():
                     raise ValueError(f"unexpected eof")
                 case el:
-                    raise ValueError(f"expected identifier or closeparen, got {first}")
+                    assert False, f"expected identifier or closeparen, got {first}"
         return impl(inp, [])
     def lambdaBody(inp: Iterable[Token]) -> Tuple[AST, Iterable[Token]]:
         first, rest = matchOn(inp)
@@ -206,6 +206,6 @@ def Eval(ast: AST) -> Value:
                     raise ValueError("expected lambda function call, got {}", l[0])
 
 
-s = "((lambda (a b) a) ((lambda (b c) b) none (lambda (a b) b)) (lambda (c d) d))"
+s = "((lambda (a b c) a) ((lambda (b c) b) none (lambda (a b) b)) (lambda (c d) d))"
 
 print([Eval(el) for el in (Lex(Tokenize(s)))])

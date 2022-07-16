@@ -46,7 +46,9 @@ def Substitute(ast AST, bound &{string: Value}) AST
 def (l Lambda) BetaReduce(args |Value|) AST
     dict = zip(stream(l.Unbound), args)
         then dicts.Collect()
-   return Substitute(l.Body, dict)
+    if len(dict) != len(l.Unbound)
+        panic("incorrect amount of args passed to function, expected {}, but got {}", len(l.Unbound), len(dict))
+    return Substitute(l.Body, dict)
 
 type Token union 
     OpenParen     ()
