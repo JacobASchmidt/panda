@@ -1,4 +1,7 @@
+from operator import inv
+import queue
 from string import whitespace
+from turtle import begin_fill
 from typing import Dict, Iterable, List, Set, Tuple
 import typing
 from dataclasses import dataclass
@@ -33,7 +36,7 @@ def Substitute(expr: Expression, bound: Dict[str, Value]) -> Expression:
             return [Substitute(el, bound) for el in vals]
         case value if isinstance(value, Value):
             match value:
-                case NoneT(_):
+                case NoneT():
                     return NoneV 
                 case Identifier(el):
                     if el in bound:
@@ -188,7 +191,6 @@ def LexExpr(inp: typing.Iterable[Token]) -> Tuple[Expression, Iterable[Token]] |
         case val if isinstance(val, Value):
             return val, rest
         case _:
-            print(f"{val, type(val)=}")
             raise ValueError("invalid syntax")
     
 def Lex(inp: Iterable[Token]) -> Iterable[Tuple[str, Expression]]:
@@ -201,7 +203,6 @@ def Lex(inp: Iterable[Token]) -> Iterable[Tuple[str, Expression]]:
                 raise ValueError(f"expected identifier, got {tok}")
             
     first, rest = matchOn(inp)
-    print(first)
     match first:
         case OpenParen():
             rest = expect(rest, Define())
@@ -255,25 +256,63 @@ def Exec(program: Iterable[Tuple[str, Expression]]) -> Dict[str, Value]:
 
         _, globals = impl(expr, set(), set())
         return globals
+    def topilogicalEval(graph: Dict[str, Set[str]], program: Dict[str, Tuple[Expression, int]]) -> Dict[str, Value]:
+        def impl(q: queue.SimpleQueue, graph: Dict[str, Set[str]], program: Dict[str, Tuple[Expression, int]], output: Dict[str, Value]) -> Dict[str, Value]:
+            if q.empty():
+                if len(graph) != 0:
+                    raise ValueError("loop detected")
+                return output
+            name = q.get()
+            if name not in program:
+                raise ValueError(f"undeclared identifier: {name}")
+            (expr, indegree) = program[name]
+            value = Eval(expr)
+            output[name] = value
+            if name in graph:
+                neighbors = graph.pop(name)
+                for neighbor in neighbors:
+                    expr, indegree = program[neighbor]
+                    expr, indegree = Substitute(expr, {name: value}), indegree - 1
+                    program[neighbor] = (expr, indegree)
+                    if indegree == 0:
+                        q.put(neighbor)
+            return impl(q, graph, program, output)
+        beginVerticies = (name for (name, (expr, indegree)) in program.items() if indegree == 0)
+        q = queue.SimpleQueue()
+        for vertex in beginVerticies:
+            q.put(vertex)
+        return impl(q, graph, program, {})
+    
+    graph, program_ = {}, {}
     for name, expr in program:
-        print(name)
-        print(undefined(expr))
-        print(expr)
+        inVertices = undefined(expr)
+        program_[name] = (expr, len(inVertices))
+        for vertex in inVertices:
+            if vertex in graph:
+                graph[vertex].add(name)
+            else:
+                graph[vertex] = {name}
+    return topilogicalEval(graph, program_)
+
 s = """
-((lambda (a b c) a) 
-    ((lambda (b c) b) 
-        none 
-        (lambda (a b) b)) 
-    (lambda (c d) d) 
-    (lambda () (lambda (a) a)))"
-"""
-s = """
-(def pair (lambda (a b) (lambda (f) (f a b)) ))
-(def first  (lambda (a b) a))
-(def second  (lambda (a b) b))
+(def main (dec (dec (inc (inc (dec (inc zero)))))))
+
+(def pair   (lambda (a b) 
+    (lambda (f) (f a b)) ))
+(def first  (lambda (f) 
+    (f (lambda (a b) a))))
+(def second (lambda (f) 
+    (f (lambda (a b) b))))
+
+(def zero none)
+(def inc (lambda (x) (pair none x)))
+(def dec (lambda (x) (second x)))
+
 (def a (first (pair none (pair none none))))
 (def b (lambda (a) pair))
 """
 
 # print([Eval(el) for el in (Lex(Tokenize(s)))])
-print(Exec(Lex(Tokenize(s))))
+prog = Exec(Lex(Tokenize(s))) 
+for name, value in prog.items():
+    print(name, "=", value)

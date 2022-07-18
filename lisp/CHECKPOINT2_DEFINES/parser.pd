@@ -39,6 +39,7 @@ def Substitute(expr Expression, bound &{string: Value}) Expression
                             return id
                 case Lambda({unbound, body})
                     bound = stream(unbound)
+                        then fileter((el) => el in bound)
                         then reduce(copy(bound), (bound, unbound) => delete(bound, unbound))
                     body = Substitute(body, bound)
                     return Expression.Value.Lambda({body, bound})
@@ -92,14 +93,13 @@ def expect(in |Token|, token Token) |Token|
             panic("unexpected eof")
 
 def LexExpr(in |Token|) maybe[(Expression, |Token|)]
-    
     def lambdaArgs(in |Token|) ([string], |Token|)
         def impl(in |Token|, out [string]) ([string], |Token|)
             match in 
                 case |Token.CloseParen(), ...rest|
                     return (out, rest)
                 case |Token.Value.Identifier(id), ...rest|
-                    if slices.Contains(out, id)
+                    if lists.Contains(out, id)
                         panic("multiple arguments of the same name {}", out)
                     return impl(rest, [...out, id])
                 case |el, ...rest|
@@ -159,7 +159,6 @@ def Lex(in |Token|) |(string, Expression)|
                 return (id, rest)
             case el:
                 panic("expected identifier, got {}", el)
-    
     match in
         case |Token.OpenParen(), ...rest|
             rest = expect(rest, Token.Define())
@@ -177,12 +176,14 @@ def Eval(expr Expression) Value
         case Expression.Value(v):
             return v 
         case Expression.List(l):
-            l = inplace.Map(l, (el) => Eval(el))
+            l = stream(l)
+                then map(l, (el) => Eval(el))
+                then lists.Collect()
             match l[0]
                 case Identifier(id)
                     panic("Unbound identifier {}", id)
                 case Lambda(lambda)
-                    return Eval(lambda.BetaReduce(slices.StreamFrom(1)))
+                    return Eval(lambda.BetaReduce(lists.StreamFrom(1)))
                 case _
                     panic("expected lambda function call, got {}", l[0])
 
@@ -212,6 +213,46 @@ def Exec(program |(string, Expression|) {string: Value}
                     return (lambdaBounds, globals)
         (bounds, globals) = impl(expr, {}, {})
         return globals
+    def topologicalEval(graph {string: {string}}, program {string: (Expression, indegree int)}) {string: Value}
+        def impl(queue queues.Queue[string], graph {string: {string}}, program {string: (Expression, indegree int)}, output {string: Value}) {string: Value}
+            (queue, val) = queue.Pop()
+            if val is some(name)
+                (program, val) = dicts.Extract(program, name)
+                (expr, indegree) = must(val, "undeclared identifier {}", name)
+                value = Eval(expr)
+                output = output[name = value]
+                (graph, neighbors) = dicts.Extract(graph, name)
+                if neighbors is some(neighbors)
+                    (queue, program) = stream(neighbors)
+                        then reduce((queue, program), ((queue, program), neighbor) => 
+                            program = program[neighbor = ((expr, indegree)) => (Substitute(expr, {name: value}), indegree - 1)]
+                            if program[neighbor][1] == 0
+                                queue = queue.Add(neighbor)
+                            return (queue, program)
+                        )
+                return impl(queue, graph, program, output)
+            else
+                if len(graph) != 0
+                    panic("loop detected in defs")
+                return output
+        beginVerticies = stream(program)
+            then filter(((name, (expr, indegree))) => indegree == 0)
+            then map(((name, _)) => name))
+        queue = queues.Collect(beginVerticies)
+        return impl(queue, graph, program, {})
 
-    return program
-        then map(((name, expr)) => (name, expr, undefined(expr)))
+    (graph, program) = program
+        then reduce(({}, {}), ((graph, program), (name, expr)) => 
+            inVertices = undefined(expr)
+            program = program[name = (expr, len(inVertices))]
+            graph = inVertices
+                then reduce(graph, (graph, vertex) => graph[vertex = (el) => 
+                    match el
+                        case some(s)
+                            return {...s, copy(name)}
+                        case none()
+                            return {copy(name)}
+                    ])
+            return (graph, program)
+        )
+    return topologicalEval(graph, program)
