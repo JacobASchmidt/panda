@@ -295,7 +295,7 @@ def Exec(program: Iterable[Tuple[str, Expression]]) -> Dict[str, Value]:
     return topilogicalEval(graph, program_)
 
 s = """
-(def main (dec (dec (inc (inc (dec (inc zero)))))))
+(def main (inc (dec (dec (inc (inc (dec (inc zero))))))))
 
 (def pair   (lambda (a b) 
     (lambda (f) (f a b)) ))
@@ -310,6 +310,7 @@ s = """
 
 (def a (first (pair none (pair none none))))
 (def b (lambda (a) pair))
+
 """
 
 # print([Eval(el) for el in (Lex(Tokenize(s)))])
