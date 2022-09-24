@@ -1,0 +1,15 @@
+module lists
+
+import (
+    "slices"
+)
+
+def Swap[A](l [A], a int, b int)
+    return l[a = l[b], b = l[a]]
+
+def Reverse[A](a [A]) [A]
+    return slices.Reverse(a, 0, len(a))
+    
+
+def Rotate[A](a [A], i int) (list [A], point int)
+    

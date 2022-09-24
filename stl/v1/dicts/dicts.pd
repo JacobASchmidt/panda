@@ -1,0 +1,10 @@
+module dicts 
+
+
+def UpdateOr[K, V](d {K = V}, k K, f (V) => V, V) {K = V}
+    if k in d 
+        return d{k = (el) => f(el)}
+    else 
+        return d{k = v}
+
+def 

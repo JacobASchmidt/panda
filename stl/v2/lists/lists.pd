@@ -1,0 +1,64 @@
+module lists 
+
+import (
+    "unsafe"
+)
+
+type List[A] struct 
+    arr unsafe.Array[A]
+    len int
+
+def (l &List[A]) Cap() int 
+    return l.arr.Cap()
+
+def (l &List[A]) Len() int 
+    return l.len
+
+def (l List[A]) Values() |A|
+    def impl(l List[A], idx int) |A|
+        if idx == l.Len() 
+            return ||
+        l = l{(.arr, el) = (arr) => arr.Remove(idx)}
+        return |el, ...impl(l, idx + 1)|
+    return impl(l, 0)
+    
+def (l &List[A]) Stream() |&A|
+    def impl(l &List[A], idx int) |&A|
+        if idx == l.Len()
+            return ||
+        return |l.arr.Get(idx), ...impl(l, idx + 1)|
+    return impl(l, 0)
+
+def (l List[A]) Swap(i int, j int) List[A]
+    return l{
+        (.arr, a) = (arr) => arr.Remove(i),
+        (.arr, b) = (arr} => arr.Remove(j),
+        .arr = (arr) => arr.Add(i, b).Add(j, a)
+    }
+
+def (l &List[A]) View(begin int, end int) &[A]
+    return l.arr.View(begin, int)
+
+def (l &List[A]) Get(i int) &A 
+    return l.arr.Get(i)
+
+def (l List[A]) Update(i int, f (A) => A) List[A]
+    return l{
+        (.arr, el) = (arr) => arr.Remove(i),
+        .arr = (arr) => arr.Insert(i, f(el))
+    }
+def (l List[A]) Append(el A) List[A]
+    if l.Len() == l.Cap()
+        l = l{.arr = (arr) => arr.DoubleSize()}
+    return l{
+        .arr = (arr) => arr.Insert(l.len, el)
+        .len = (len) => len + 1
+    }
+
+def (l List[A]) Pop() (List[A], A)
+    l = l{
+        (.arr, el) = (arr) => arr.Remove(l.len),
+        .len = (len) => len - 1
+    }
+    return (l, el)
+

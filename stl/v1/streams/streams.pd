@@ -1,0 +1,64 @@
+module streams
+
+import (
+    "equal"
+    "compare"
+)
+
+def Chain[A](a |A|, b |A|) |A|
+    def impl(a |A|, b |A|, done bool) |A|   
+        if not done
+            match a
+                case |el, ...rest|
+                    return |el, ...impl(rest, b, false)|
+                case ||
+                    return impl(||, b, true)
+        else
+            match b
+                case |el, ...rest|
+                    return |el, impl(||, rest, true)
+                case ||
+                    return ||
+
+
+def Equal[A](a |A|, b |A|, eq equal.Func[A]) bool 
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            if not eq(a, b)
+                return false
+            return Equal(a_rest, b_rest)
+        case (||, ||)
+            return true 
+        case _ 
+            return false 
+
+def Compare[A](a |A|, b |B|, cmp compare.Func[A])
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            match cmp(a, b)
+                case compare.Result.Less()
+                    return compare.Result.Less()
+                case compare.Result.Equal()
+                    return Compare(a_rest, b_rest)
+                case compare.Result.Greater()
+                    return compare.Result.Equal()
+        case (||, ||)
+            return compare.Result.Equal()
+        case (a, ||)
+            return compare.Result.Greater()
+        case (||, b)
+            return compare.Result.Less() 
+
+def IsPartitioned[A](a |A|, f &(&A) => bool) bool 
+    def dropFirst(a |A|, f &(&A) => bool) |A|
+        match a 
+            case |el, ...rest|
+                if f(el)
+                    return dropFirst(rest)
+                return rest
+            case ||
+                return ||
+    a = dropFirst(a, f)
+    return map(a, (el) => not f(el))
+        then all()
+    

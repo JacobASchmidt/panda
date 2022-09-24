@@ -1,0 +1,17 @@
+module unsafe
+
+type Array[A] builtinUnsafeArray
+
+def (a &Array[A]) Get(i int) &A
+    return builtinUnsafeArrayGet(a, i)
+def (a Array[A]) Remove(i int) (Array[A], A) 
+    return builtinUnsafeArrayRemove(a, i)
+def (a Array[A]) Add(i int, val A) Array[A]
+    return builtinUnsafeArrayAdd(a, i, val)
+def (a &Array[A]) Cap() int 
+    return builtinUnsafeArrayCap(a)
+def (a Array[A]) Grow(i int) Array[A]
+    return builtinUnsafeArrayGrow(a, i)
+def (a Array[A]) DoubleSize() Array[A]
+    return a.Grow(a.Cap() * 2)
+

@@ -1,0 +1,67 @@
+module sorted
+
+import (
+    "compare"
+)
+
+def SetUnion[A](a |A|, b |A|, cmp compare.Func[A]) |A|
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            match cmp(a_el, b_el)
+                case less()
+                    return |a_el, ...SetUnion(a_rest, |b_el, ...b_rest|)|
+                case equal()
+                    return |a_el, ...SetUnion(a_rest, b_rest)|
+                case greater()
+                    return |b_el, ...SetUnion(|a_el, ...a_rest|, b_rest)|
+        case (a, ||)
+            return a 
+        case (||, b)
+            return b 
+
+def SetIntersection[A](a |A|, b |A|, cmp compare.Func[A]) |A|
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            match cmp(a_el, b_el)
+                case less()
+                    return SetIntersection(a_rest, |b_el, ...b_rest|)
+                case equal()
+                    return |a_el, ...SetUnion(a_rest, b_rest)|
+                case greater()
+                    return SetIntersection(|a_el, ...a_rest|, b_rest)
+        case (a, ||)
+            return a 
+        case (||, b)
+            return b 
+    
+def SetDifference[A](a |A|, b |A|, cmp compare.Func[A]) |A|
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            match cmp(a_el, b_el)
+                case less()
+                    return |a_el, ...SetDifference(a_rest, |b_el, ...b_rest|)|
+                case equal()
+                    return SetDifference(a_rest, b_rest)
+                case greater()
+                    return SetDifference(|a_el, ...a_rest|, b_rest)
+        case (a, ||)
+            return a 
+        case (||, b)
+            return ||
+        
+def SetSymetricDifference[A](a |A|, b |A|, cmp compare.Func[A]) |A|
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            match cmp(a_el, b_el)
+                case less()
+                    return |a_el, ...SetSymetricDifference(a_rest, |b_el, ...b_rest|)|
+                case equal()
+                    return SetSymetricDifference(a_rest, b_rest)
+                case greater()
+                    return |b_el, ...SetSymetricDifference(|a_el, ...a_rest|, b_rest)
+        case (a, ||)
+            return a 
+        case (||, b)
+            return b 
+
+

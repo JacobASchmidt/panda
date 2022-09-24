@@ -1,0 +1,62 @@
+module queues
+
+import (
+    "unsafe"
+    "streams"
+)
+
+class Interface[A] interface
+    (Self) Push(A) Self
+    (Self) Pop() (Self, A)
+
+type Queue[A] struct 
+    array unsafe.Array[A]
+    start int 
+    len int 
+
+def (q Queue[A]) realloc() Queue[A]
+    new = make([A], 2 * queue.len)
+    return Queue[A]{
+        data = data.Realloc(data.Cap * 2),
+        start = 0,
+        len = q.len
+    }
+
+def (q Queue[A]) Values() |A|
+    if q.start + q.len > len(q.list)
+        aEls = q.array.UnsafeSliceValues(q.start, q.array.Cap)
+        bEls = q.array.UnsafeSliceValues(q.list, 0, q.len - q.start)
+        drop(q)
+        return streams.Chain(aEls, bEls)
+    else 
+        return q.array.UnsafeSliceValues(q.list, 0, q.len - q.start)
+
+def (q &Queue[A]) Stream() |&A|
+    if q.start + q.len > len(q.list)
+        aEls = streamSlice(q.list, q.start, len(q.list))
+        bEls = streamSlice(q.list, 0, q.len - q.start)
+        return streams.Chain(aEls, bEls)
+    else 
+        return unsafe.SliceVals(q.list, 0, q.len - q.start)
+
+
+def (q Queue[A]) Push(el A) Queue[A]
+    if q.len == cap(q)
+        q = q.realloc()
+    return q{
+        list = unsafe.ListInitilize(q.list, q.start, val),
+        len = (i) => i + 1
+    }
+
+def (q Queue[A]) Pop() (Queue[A], A?)
+    if q.len == 0
+        return (q, none())
+    el = unsafe.ListExtract(q.list, q.start)
+    q = q{
+        start = (el) => el + 1,
+        len   = (el) => el - 1
+    }
+    if q.start == len(q.list)
+        q = q{start = 0}
+    return (q, some(el))
+

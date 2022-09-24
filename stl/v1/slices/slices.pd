@@ -1,0 +1,117 @@
+module slices
+
+import (
+    "equal"
+    "compare"
+)
+
+def swap[A](l [A], a int, b int) [A]
+    return l[
+        a = l[b],
+        b = l[a]
+    ]
+
+def Reverse[A](a [A], begin int, end int) [A]
+    if begin == end 
+        return a
+    return Reverse(swap(a, begin, end), begin + 1, end - 1)
+
+def Rotate[A](a [A], begin int, middle int, end int) ([A], int)
+    a = Reverse(a, begin, middle)
+        then Reverse(middle, end)
+        then Reverse(begin, end)
+    returm (a, begin + (end - middle))
+
+def Partition[A](a [A], begin int, end int, f &(&A) => bool) ([A], int)
+    def impl(a [A], i int, j int, end int, f &(&A) => bool) ([A], int)
+        if i == end 
+            return (a, j)
+        if f(s[i])
+            return impl(swap(a, i, j), i+1, j+1, f)
+        return impl(s, i, j+1, f)
+    return impl(a, begin, begin, end, f)
+
+def StablePartition[A](a [A], begin int, end int, f &(&A) => bool) ([A], int)
+    match end - begin 
+        case 0
+            return begin 
+        case 1 
+            return begin + f(a[begin])
+        case _
+            mid = midpoint(begin, end)
+            (a, lPoint) = StablePartition(a, begin, mid)
+            (a, rPoint) = StablePartition(a, mid, end)
+            return Rotate(a, lPoint, mid, rPoint)
+
+def partitionLast[A](a [A], begin int, end int, less compare.LessFunc) ([A], int)
+    mid = midpoint(begin, end)
+    last = end - 1
+    last_el = a[last]
+    a = swap(a, mid, last)
+    (a, i) = Partition(a, begin, last, (el) => less(el, last_el))
+    a = swap(a, i, last)
+    return (a, i)
+
+def Sort[A](a [A], begin int, end int, less compare.LessFunc) [A]
+    if begin == end
+        return a 
+    (a, mid) = partitionLast(a, begin, end, less)
+    return a
+        then Sort(begin, mid)
+        then Sort(mid + 1, last)
+
+def stablePartitionFirst[A](a [A], begin int, end int, less compare.LessFunc) ([A], int)
+    return StablePartition(a, begin, end, (el) => less(el, a[begin]))
+
+def StableSort[A](a [A], begin int, end int) [A]
+    if begin == end 
+        return a 
+    (a, mid) = stablePartitionMid(a, begin, end, less)
+    if mid == begin 
+        mid = mid + 1
+    return a 
+        then Sort(begin, mid)
+        then Sort(mid, end)
+
+def PlaceNthElement[A](a [A], begin int, n int, end int, less compare.LessFunc[A]) [A]
+    if end - begin <= 1 
+        return a 
+    point = partitionLast(a, begin, end, less)
+    match point <=> n 
+        case less()
+            return PlaceNthElement(a, point + 1, n, end, less)
+        case equal()
+            return a 
+        case greater()
+            return PlaceNthElement(a, begin, n, point, less)
+
+def StablePlaceNthElement[A](a [A], begin int, n int, end int, less compare.LessFunc[A]) [A]
+    if end - begin <= 1 
+        return a
+    point = stablePartitionFirst(a, begin, end, less)
+    
+    if point == begin 
+        point = point + 1
+
+    match point <=> n
+        case less() 
+            return StablePlaceNthElement(a, point, n, end, less)
+        case equal()
+            return a 
+        case greater()
+            return StablePlaceNthElement(a, begin, n, point, less)
+
+def PartitionPoint[A](a &[A], begin int, end int, f &(&A) => bool) int
+    match end - begin 
+        case 0
+            return begin 
+        case 1 
+            return int(f[begin])
+        case _ 
+            mid = midpoint(begin, end)
+            if f(a[mid])
+                return PartitionPoint(a, mid + 1, end, f)
+            return PartitionPoint(a, begin, mid, f)
+
+def IsPartitioned[A](a &[A], begin int, end int, f &(&A) => bool) bool 
+    def takeFirst(a &[A])

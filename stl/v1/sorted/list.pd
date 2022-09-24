@@ -1,0 +1,22 @@
+module sorted
+
+import (
+    "compare"
+)
+
+def Search[A](a &[A], target &A, cmp compare.Func[A]) int?
+    def impl(a &[A], begin int, end int, target &A, cmp &(&A, &A) => Result) int?
+        if begin >= end 
+            return none()
+        mid = midpoint(begin, end)
+        match cmp(target, a[mid])
+            case compare.Result.Less()
+                return impl(a, begin, mid, target, cmp)
+            case compare.Result.Equal()
+                return some(mid) 
+            case compare.Result.Greater()
+                return impl(a, mid + 1, end, target, cmp)
+    return impl(a, 0, len(a), target, cmp)
+
+def Contains[A](a &[A], target &A, cmp compare.Func[A]) bool 
+    return Search(a, target, cmp) is not none()

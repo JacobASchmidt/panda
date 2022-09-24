@@ -1,0 +1,50 @@
+module equal 
+
+class Interface[A] interface 
+    (A) Equals(A) bool 
+
+class Class set 
+    bool 
+    int 
+    &string
+    &[Class]
+    Interface[A]
+
+class Func[A] = &(&A, &A) => bool
+
+def Equal[C Class](a C, b C) bool 
+    match C 
+        case bool
+            return a == b 
+        case int
+            return a == b 
+        case &string 
+            return a == b 
+        case &[Class]
+            return len(a) == len(b) 
+                and zip(stream(a), stream(b))
+                then all(((a, b)) => Equal(a, b))
+        case &{Class: Class}
+            if len(a) != len(b)
+                return false 
+            return values(a)
+                then all(((k, v)) => 
+                    match b[k]
+                        case some(val)
+                            return Equal(v, val)
+                        case none()
+                            return false 
+                )
+        case &{Class}
+            if len(a) != len(b)
+                return false 
+            return stream(a)
+                then map((el) => el in b)
+                then all()
+        case &(Class...)
+            return members(a) == members(b) and ...
+        case &struct{Class...}
+            return members(a) == members(b) and ...
+        case &union{Class...}
+            return 
+

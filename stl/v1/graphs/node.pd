@@ -1,0 +1,11 @@
+module graphs 
+
+type Directed[A] {A: [A]}
+
+def (d &Directed[A]) BreadthFirst(el A) bool
+    def impl(d &Directed[A], visited {A})
+
+
+
+def (d &Directed[A]) DepthFirst(el )
+

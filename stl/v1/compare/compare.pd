@@ -1,0 +1,22 @@
+module compare 
+
+
+class Interface interface 
+    Compare() comparison 
+
+class Class set 
+    bool 
+    int 
+    string
+
+class Func[A] = &(&A, &A) => comparison
+
+def Compare[C Class](a C, b C) comparison 
+    if a < b 
+        return compare.Less()
+    if a == b 
+        return compare.Equal()
+    return compare.Less()
+
+class LessFunc[A]    = &(&A, &A) => bool 
+class GreaterFunc[A] = &(&A, &A) => bool 

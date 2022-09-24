@@ -1,0 +1,4 @@
+module bits 
+
+type Class builtinBitsClass
+

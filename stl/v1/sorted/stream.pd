@@ -1,0 +1,23 @@
+module sorted 
+
+import (
+    "compare"
+)
+
+def Merge[A](a |A|, b |A|, cmp compare.Func[A]) |A|
+    match (a, b)
+        case (|a_el, ...a_rest|, |b_el, ...b_rest|)
+            match cmp(a_el, b_el)
+                case less()
+                    return |a_el, ...Merge(a_rest, |b_el, ...b_rest|)|
+                case equal()
+                    return |a_el, ...Merge(a_rest, |b_el, ...b_rest|)|
+                case greater()
+                    return |b_el, ...Merge(|a_el, ...a_rest|, b_rest)|
+        case (||, ||)
+            return ||
+        case (a, ||)
+            return a
+        case (||, b)
+            return b
+

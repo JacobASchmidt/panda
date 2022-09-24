@@ -1,0 +1,63 @@
+package builtin 
+
+class any interface 
+    pass 
+
+def map[A, B](a |A|, f &(A) => B) |B|
+    match a 
+        case |el, ...rest|
+            return |f(el), ...map(rest, f)|
+        case ||
+            return ||
+
+def filter[A](a |A|, f &(&A) => bool) |A|
+    match a 
+        case |el, ...rest|
+            if f(el)
+                return |el, ...filter(rest, f)
+            else 
+                return filter(rest, f)
+        case ||
+            return ||
+        
+def reduce[A, B](a |A|, init B, f &(B, A) => B) B 
+    match a 
+        case |el, ...rest|
+            return reduce(rest, f(init, el), f)
+        case ||
+            return init
+
+def zip[A, B](a |A|, b |B|) |(A, B)|
+    match (a, b)
+        case (|firstA, ...restA|, |firstB, ...restB|
+            return |(firstA, firstB), ...zip(restA, restB)|
+        case _
+            return ||
+
+def iota(i int) |int|
+    return |i, ...iota(i + 1)|
+
+def enumerate[A](a |A|) |(int, A)|
+    return zip(iota(0), a)
+
+def takeWhile[A](a |A|, f &(&A) bool) |A|
+    match a
+        case |el, ...rest| if f(el)
+            return |el, ...takeWhile(rest)|
+        case _
+            return ||
+    
+def range(a int, b int) |int|
+    return iota(a)
+        then takeWhile((el int) => el < b)
+
+def append[A](a [A], el A) [A]
+    return [...a, el]
+
+def extend[A](a [A], els |A|) [A]
+    return reduce(els, a, (a, el) => append(a, el))
+
+
+
+
+

@@ -1,0 +1,13 @@
+module multi 
+
+type Set[A] struct 
+    set {A = int}
+
+
+
+def (s Set[A]) Add(el A) Set[A]
+    return s{set = (set) => dicts.UpdateOr(set, el, (cnt) => cnt + 1, 1)}
+
+def (s Set[A]) Remove(el A) Set[A]
+    return s{set = (set) => 
+        match}

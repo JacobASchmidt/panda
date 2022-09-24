@@ -1,0 +1,39 @@
+module hash 
+
+import (
+    "bits"
+    "unsafe"
+)
+
+class Interface interface 
+    (&Self) Hash() uint
+
+class Class set 
+    Interface
+    bool 
+    int 
+    float
+    (...Class)
+    (struct ...Class)
+    (union ...Class)
+
+def Combine(a uint, b uint) uint    
+    return bits.Xor(a, b + 0x9e3779b9 + bits.Shiftl(a, 6) + bits.Shiftr(a, 2))
+
+def Hash[C Class](h C) uint 
+    match C 
+        case Interface 
+            return h.Hash()
+        case bool 
+            return int(h)
+        case int
+            return h
+        case float
+            return unsafe.Bitcast[int](h)
+        case (...Class)
+            return elements(h) then map((el) => Hash(el)) then reduce(0, (a, b) => Combine(a, b))
+        case (struct ...Class)
+            return elements(h) then map((el => Hash(el))) then reduce(0, (a, b) => Combine(a, b))
+        case (union ...Class)
+            return apply(h, (el) => Hash(el))
+

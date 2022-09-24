@@ -1,0 +1,22 @@
+module sets 
+
+import (
+    "unsafe"
+    "hash"
+)
+
+def hash[A hash.Class](a A) uint 
+    u = hash.Hash(a)
+    if unlikely(u == uint(-1))
+        return -2
+    return u
+
+type Set[A] struct 
+    arr unsafe.Array[A]
+    len int 
+
+def (s Set[A]) Values() |A|
+    def impl()
+
+def (s Set[A Hashable]) Hash() uint
+    return 
